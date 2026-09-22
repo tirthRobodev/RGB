@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CellCare Light Therapy System — Control panel for targeted light therapy sessions.">
+  <title>CellCare — Light Therapy System</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- Toast -->
+  <div class="toast-container">
+    <div class="toast" id="toast" role="alert" aria-live="polite">
+      <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span class="toast-text" id="toast-text"></span>
+      <button class="toast-dismiss" onclick="CellCare.hideToast()" aria-label="Dismiss">&times;</button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="header">
+    <div class="header-brand">
+      <h1>CELLCARE</h1>
+      <span>Light Therapy System</span>
+    </div>
+    <div class="status-indicator" id="system-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">CONNECTING</span>
+    </div>
+  </header>
+
+  <!-- Session Hero -->
+  <section class="session-hero" id="session-hero">
+    <!-- IDLE / CONFIGURED -->
+    <div id="hero-idle">
+      <div class="hero-state-label idle">READY FOR SESSION</div>
+      <p class="hero-subtitle">Configure your therapy parameters below</p>
+    </div>
+
+    <!-- STARTING -->
+    <div id="hero-starting" class="hidden">
+      <div class="hero-state-label starting">STARTING THERAPY</div>
+      <div style="margin: 12px 0;"><div class="spinner" style="margin:0 auto;"></div></div>
+      <p class="hero-subtitle">Connecting to chamber…</p>
+    </div>
+
+    <!-- RUNNING -->
+    <div id="hero-running" class="hidden">
+      <div class="hero-state-label running">THERAPY ACTIVE</div>
+      <div class="progress-ring-container">
+        <svg class="progress-ring" width="160" height="160" viewBox="0 0 160 160">
+          <circle class="progress-ring-bg" cx="80" cy="80" r="70"/>
+          <circle class="progress-ring-fill" id="progress-fill" cx="80" cy="80" r="70"
+                  stroke-dasharray="439.82" stroke-dashoffset="0"/>
+        </svg>
+        <div class="progress-ring-center">
+          <div class="timer-display" id="timer-running">00:00</div>
+          <div class="timer-label">remaining</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAUSED -->
+    <div id="hero-paused" class="hidden">
+      <div class="hero-state-label paused">THERAPY PAUSED</div>
+      <div class="progress-ring-container">
+        <svg class="progress-ring" width="160" height="160" viewBox="0 0 160 160">
+          <circle class="progress-ring-bg" cx="80" cy="80" r="70"/>
+          <circle class="progress-ring-fill paused" id="progress-fill-paused" cx="80" cy="80" r="70"
+                  stroke-dasharray="439.82" stroke-dashoffset="0"/>
+        </svg>
+        <div class="progress-ring-center">
+          <div class="timer-display" id="timer-paused">00:00</div>
+          <div class="timer-label">paused</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETED -->
+    <div id="hero-completed" class="hidden">
+      <div class="hero-state-label completed">SESSION COMPLETE</div>
+      <div class="completion-summary" id="completion-summary">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+
+    <!-- OFFLINE -->
+    <div id="hero-offline" class="hidden">
+      <div class="hero-state-label offline">CONTROLLER OFFLINE</div>
+      <p class="hero-subtitle">Unable to communicate with the CellCare chamber</p>
+    </div>
+  </section>
+
+  <!-- Tray Selection -->
+  <section class="section" id="section-tray">
+    <div class="section-header">
+      <span class="section-title">Tray</span>
+      <span class="lock-badge">Session Active</span>
+    </div>
+    <div class="tray-options" role="radiogroup" aria-label="Select tray">
+      <button class="tray-option active" id="tray-top" role="radio" aria-checked="true"
+              onclick="CellCare.selectTray('top')" tabindex="0" aria-label="Top Tray">
+        <div class="tray-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6l2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6l2.1-2.1"/>
+            <circle cx="12" cy="12" r="4"/>
+          </svg>
+        </div>
+        <span class="tray-label">Top Tray</span>
+      </button>
+      <button class="tray-option" id="tray-bottom" role="radio" aria-checked="false"
+              onclick="CellCare.selectTray('bottom')" tabindex="-1" aria-label="Bottom Tray">
+        <div class="tray-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6l2.1 2.1M5.6 18.4l2.1-2.1m8.6-8.6l2.1-2.1"/>
+            <circle cx="12" cy="12" r="4"/>
+          </svg>
+        </div>
+        <span class="tray-label">Bottom Tray</span>
+      </button>
+      <button class="tray-option" id="tray-both" role="radio" aria-checked="false"
+              onclick="CellCare.selectTray('both')" tabindex="-1" aria-label="Both Trays">
+        <div class="tray-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <circle cx="12" cy="7" r="3"/>
+            <circle cx="12" cy="17" r="3"/>
+            <line x1="12" y1="10" x2="12" y2="14"/>
+          </svg>
+        </div>
+        <span class="tray-label">Both</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- Wavelength -->
+  <section class="section" id="section-wavelength">
+    <div class="section-header">
+      <span class="section-title">Wavelength</span>
+      <span class="lock-badge">Session Active</span>
+    </div>
+    <div class="wavelength-value-row">
+      <span class="wavelength-nm" id="wl-value">450</span>
+      <span class="wavelength-unit">nm</span>
+    </div>
+    <div class="wavelength-color-row">
+      <span class="wavelength-color-name" id="wl-color-name">Blue</span>
+    </div>
+    <div class="slider-track">
+      <input type="range" id="wavelength-slider" min="380" max="700" value="450"
+             aria-label="Wavelength in nanometers"
+             oninput="CellCare.onWavelengthInput()"
+             onchange="CellCare.onWavelengthChange()">
+    </div>
+    <div class="slider-labels">
+      <span>380 nm</span>
+      <span>450</span>
+      <span>495</span>
+      <span>570</span>
+      <span>620</span>
+      <span>700 nm</span>
+    </div>
+  </section>
+
+  <!-- Duration -->
+  <section class="section" id="section-duration">
+    <div class="section-header">
+      <span class="section-title">Session Duration</span>
+      <span class="lock-badge">Session Active</span>
+    </div>
+    <div class="duration-row">
+      <div class="duration-field">
+        <button class="stepper-btn" id="min-up" onclick="CellCare.stepMinutes(1)" aria-label="Increase minutes">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+        <input type="number" class="duration-input" id="input-minutes" value="10"
+               min="0" max="999" aria-label="Minutes"
+               oninput="CellCare.onDurationChange()">
+        <button class="stepper-btn" id="min-down" onclick="CellCare.stepMinutes(-1)" aria-label="Decrease minutes">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        </button>
+        <span class="duration-hint">min</span>
+      </div>
+      <span class="duration-separator">:</span>
+      <div class="duration-field">
+        <button class="stepper-btn" id="sec-up" onclick="CellCare.stepSeconds(1)" aria-label="Increase seconds">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+        </button>
+        <input type="number" class="duration-input" id="input-seconds" value="00"
+               min="0" max="59" aria-label="Seconds"
+               oninput="CellCare.onDurationChange()">
+        <button class="stepper-btn" id="sec-down" onclick="CellCare.stepSeconds(-1)" aria-label="Decrease seconds">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+        </button>
+        <span class="duration-hint">sec</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Action Area -->
+  <div class="action-area" id="action-area">
+    <!-- Dynamically rendered by JS -->
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">Controlled Light. Safer Care.</footer>
+
+</div>
+
+<script>
+// ============================================================
+// CELLCARE — Frontend Controller
+// State-driven, performance-optimized, zero-framework
+// ============================================================
+
+const CellCare = (() => {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────
+  const UI_STATES = {
+    IDLE: 'IDLE',
+    CONFIGURED: 'CONFIGURED',
+    RUNNING: 'RUNNING',
+    PAUSED: 'PAUSED',
+    COMPLETED: 'COMPLETED',
+    OFFLINE: 'OFFLINE',
+    STARTING: 'STARTING',
+    STOPPING: 'STOPPING'
+  };
+
+  const state = {
+    uiState: UI_STATES.IDLE,
+    prevUiState: null,
+    tray: 'top',
+    wavelength: 450,
+    minutes: 10,
+    seconds: 0,
+    totalDurationMs: 600000,
+    remainingMs: 0,
+    serverRemainingMs: 0,
+    serverTimestamp: 0,
+    isOnline: false,
+    consecutiveErrors: 0,
+    pendingCommand: null // 'start' | 'stop' | 'pause' | 'resume' | null
+  };
+
+  // ── Cached DOM ─────────────────────────────────────────────
+  let el = {};
+
+  function cacheDom() {
+    el = {
+      app: document.getElementById('app'),
+      statusDot: document.getElementById('status-dot'),
+      statusText: document.getElementById('status-text'),
+      sessionHero: document.getElementById('session-hero'),
+      heroIdle: document.getElementById('hero-idle'),
+      heroStarting: document.getElementById('hero-starting'),
+      heroRunning: document.getElementById('hero-running'),
+      heroPaused: document.getElementById('hero-paused'),
+      heroCompleted: document.getElementById('hero-completed'),
+      heroOffline: document.getElementById('hero-offline'),
+      timerRunning: document.getElementById('timer-running'),
+      timerPaused: document.getElementById('timer-paused'),
+      progressFill: document.getElementById('progress-fill'),
+      progressFillPaused: document.getElementById('progress-fill-paused'),
+      completionSummary: document.getElementById('completion-summary'),
+      sectionTray: document.getElementById('section-tray'),
+      sectionWavelength: document.getElementById('section-wavelength'),
+      sectionDuration: document.getElementById('section-duration'),
+      trayTop: document.getElementById('tray-top'),
+      trayBottom: document.getElementById('tray-bottom'),
+      trayBoth: document.getElementById('tray-both'),
+      wlValue: document.getElementById('wl-value'),
+      wlColorName: document.getElementById('wl-color-name'),
+      wlSlider: document.getElementById('wavelength-slider'),
+      inputMinutes: document.getElementById('input-minutes'),
+      inputSeconds: document.getElementById('input-seconds'),
+      actionArea: document.getElementById('action-area'),
+      toast: document.getElementById('toast'),
+      toastText: document.getElementById('toast-text')
+    };
+  }
+
+  // ── Wavelength Helpers ─────────────────────────────────────
+  function wavelengthToInfo(nm) {
+    if (nm < 420) return { name: 'Violet', bg: 'rgba(124,58,237,0.15)', color: '#A78BFA' };
+    if (nm < 470) return { name: 'Blue', bg: 'rgba(59,130,246,0.15)', color: '#60A5FA' };
+    if (nm < 500) return { name: 'Cyan', bg: 'rgba(6,182,212,0.15)', color: '#22D3EE' };
+    if (nm < 560) return { name: 'Green', bg: 'rgba(34,197,94,0.15)', color: '#4ADE80' };
+    if (nm < 590) return { name: 'Yellow', bg: 'rgba(234,179,8,0.15)', color: '#FACC15' };
+    if (nm < 635) return { name: 'Orange', bg: 'rgba(249,115,22,0.15)', color: '#FB923C' };
+    return { name: 'Red', bg: 'rgba(239,68,68,0.15)', color: '#F87171' };
+  }
+
+  // ── Format Helpers ─────────────────────────────────────────
+  function formatTime(ms) {
+    const totalSec = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function trayDisplayName(tray) {
+    if (tray === 'top') return 'Top Tray';
+    if (tray === 'bottom') return 'Bottom Tray';
+    return 'Both Trays';
+  }
+
+  // ── Toast ──────────────────────────────────────────────────
+  let toastTimeout = null;
+
+  function showToast(message, isError) {
+    el.toastText.textContent = message;
+    el.toast.classList.toggle('error', !!isError);
+    el.toast.classList.add('visible');
+    clearTimeout(toastTimeout);
+    toastTimeout = setTimeout(hideToast, 5000);
+  }
+
+  function hideToast() {
+    el.toast.classList.remove('visible');
+    clearTimeout(toastTimeout);
+  }
+
+  // ── Render: Hero ───────────────────────────────────────────
+  const heroSections = ['heroIdle', 'heroStarting', 'heroRunning', 'heroPaused', 'heroCompleted', 'heroOffline'];
+
+  function showHeroSection(name) {
+    heroSections.forEach(key => {
+      el[key].classList.toggle('hidden', key !== name);
+    });
+  }
+
+  let prevRenderedHeroState = null;
+
+  function renderHero() {
+    const s = state.uiState;
+    if (s === prevRenderedHeroState && s !== UI_STATES.RUNNING && s !== UI_STATES.PAUSED) return;
+    prevRenderedHeroState = s;
+
+    // Reset hero classes
+    el.sessionHero.className = 'session-hero';
+
+    switch (s) {
+      case UI_STATES.IDLE:
+      case UI_STATES.CONFIGURED:
+        showHeroSection('heroIdle');
+        break;
+
+      case UI_STATES.STARTING:
+      case UI_STATES.STOPPING:
+        showHeroSection('heroStarting');
+        el.sessionHero.classList.add('running');
+        break;
+
+      case UI_STATES.RUNNING:
+        showHeroSection('heroRunning');
+        el.sessionHero.classList.add('running');
+        break;
+
+      case UI_STATES.PAUSED:
+        showHeroSection('heroPaused');
+        el.sessionHero.classList.add('paused');
+        break;
+
+      case UI_STATES.COMPLETED:
+        showHeroSection('heroCompleted');
+        el.sessionHero.classList.add('completed');
+        renderCompletionSummary();
+        break;
+
+      case UI_STATES.OFFLINE:
+        showHeroSection('heroOffline');
+        el.sessionHero.classList.add('offline');
+        break;
+    }
+  }
+
+  function renderCompletionSummary() {
+    const totalSec = Math.floor(state.totalDurationMs / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    const info = wavelengthToInfo(state.wavelength);
+
+    el.completionSummary.innerHTML =
+      `<div class="completion-item"><div class="value">${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}</div><div class="label">Duration</div></div>` +
+      `<div class="completion-item"><div class="value" style="color:${info.color}">${state.wavelength} nm</div><div class="label">${info.name}</div></div>` +
+      `<div class="completion-item"><div class="value">${trayDisplayName(state.tray)}</div><div class="label">Tray</div></div>`;
+  }
+
+  // ── Render: Timer ──────────────────────────────────────────
+  let prevTimerText = '';
+
+  function renderTimer() {
+    const s = state.uiState;
+    if (s !== UI_STATES.RUNNING && s !== UI_STATES.PAUSED) return;
+
+    const text = formatTime(state.remainingMs);
+    if (text === prevTimerText) return;
+    prevTimerText = text;
+
+    if (s === UI_STATES.RUNNING) {
+      el.timerRunning.textContent = text;
+    } else {
+      el.timerPaused.textContent = text;
+    }
+
+    // Update progress ring
+    const circumference = 439.82; // 2 * pi * 70
+    const progress = state.totalDurationMs > 0
+      ? state.remainingMs / state.totalDurationMs
+      : 0;
+    const offset = circumference * (1 - progress);
+    const fillEl = s === UI_STATES.RUNNING ? el.progressFill : el.progressFillPaused;
+    fillEl.setAttribute('stroke-dashoffset', offset);
+  }
+
+  // ── Render: Controls ───────────────────────────────────────
+  let prevControlsLocked = null;
+
+  function renderControls() {
+    const isLocked = [UI_STATES.RUNNING, UI_STATES.PAUSED, UI_STATES.STARTING, UI_STATES.STOPPING].includes(state.uiState);
+
+    if (isLocked !== prevControlsLocked) {
+      prevControlsLocked = isLocked;
+      el.sectionTray.classList.toggle('locked', isLocked);
+      el.sectionWavelength.classList.toggle('locked', isLocked);
+      el.sectionDuration.classList.toggle('locked', isLocked);
+      el.inputMinutes.disabled = isLocked;
+      el.inputSeconds.disabled = isLocked;
+      el.wlSlider.disabled = isLocked;
+    }
+  }
+
+  // ── Render: Action Button ──────────────────────────────────
+  let prevActionState = null;
+
+  function renderAction() {
+    const s = state.uiState;
+    if (s === prevActionState) return;
+    prevActionState = s;
+
+    let html = '';
+
+    switch (s) {
+      case UI_STATES.IDLE:
+      case UI_STATES.CONFIGURED:
+        html = `<button class="btn btn-primary" onclick="CellCare.sendCommand('start')">
+                  <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                  START THERAPY
+                </button>`;
+        break;
+
+      case UI_STATES.STARTING:
+      case UI_STATES.STOPPING:
+        html = `<button class="btn btn-primary" disabled>
+                  <div class="spinner"></div>
+                  ${s === UI_STATES.STARTING ? 'STARTING…' : 'STOPPING…'}
+                </button>`;
+        break;
+
+      case UI_STATES.RUNNING:
+        html = `<div class="btn-row">
+                  <button class="btn btn-warning" onclick="CellCare.sendCommand('pause')">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+                    PAUSE
+                  </button>
+                  <button class="btn btn-danger" onclick="CellCare.sendCommand('stop')">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                    STOP
+                  </button>
+                </div>`;
+        break;
+
+      case UI_STATES.PAUSED:
+        html = `<div class="btn-row">
+                  <button class="btn btn-primary" onclick="CellCare.sendCommand('resume')">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                    RESUME
+                  </button>
+                  <button class="btn btn-danger" onclick="CellCare.sendCommand('stop')">
+                    <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h12v12H6z"/></svg>
+                    STOP
+                  </button>
+                </div>`;
+        break;
+
+      case UI_STATES.COMPLETED:
+        html = `<button class="btn btn-primary" onclick="CellCare.resetSession()">
+                  START NEW SESSION
+                </button>`;
+        break;
+
+      case UI_STATES.OFFLINE:
+        html = `<button class="btn btn-secondary" onclick="CellCare.fetchStatus()">
+                  RETRY CONNECTION
+                </button>`;
+        break;
+    }
+
+    el.actionArea.innerHTML = html;
+  }
+
+  // ── Render: Connection ─────────────────────────────────────
+  let prevOnlineState = null;
+
+  function renderConnection() {
+    if (state.isOnline === prevOnlineState) return;
+    prevOnlineState = state.isOnline;
+
+    el.statusDot.className = 'status-dot ' + (state.isOnline ? 'online' : 'offline');
+    el.statusText.textContent = state.isOnline ? 'ONLINE' : 'OFFLINE';
+  }
+
+  // ── Render: Wavelength (local only) ────────────────────────
+  let prevRenderedWl = null;
+
+  function renderWavelength() {
+    const nm = state.wavelength;
+    if (nm === prevRenderedWl) return;
+    prevRenderedWl = nm;
+
+    const info = wavelengthToInfo(nm);
+    el.wlValue.textContent = nm;
+    el.wlColorName.textContent = info.name;
+    el.wlColorName.style.background = info.bg;
+    el.wlColorName.style.color = info.color;
+  }
+
+  // ── Master Render ──────────────────────────────────────────
+  function renderAll() {
+    renderConnection();
+    renderHero();
+    renderTimer();
+    renderControls();
+    renderAction();
+    renderWavelength();
+  }
+
+  // ── API Layer ──────────────────────────────────────────────
+  function fetchStatus() {
+    fetch('/api/status')
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (!data || data.status === 'error') {
+          handleOffline();
+          return;
+        }
+
+        state.isOnline = true;
+        state.consecutiveErrors = 0;
+
+        // Map backend state to UI state
+        const backendState = (data.state || 'IDLE').toUpperCase();
+        const wasStarting = state.uiState === UI_STATES.STARTING;
+        const wasStopping = state.uiState === UI_STATES.STOPPING;
+
+        if (backendState === 'RUNNING') {
+          state.uiState = UI_STATES.RUNNING;
+          state.pendingCommand = null;
+        } else if (backendState === 'PAUSED') {
+          state.uiState = UI_STATES.PAUSED;
+          state.pendingCommand = null;
+        } else if (backendState === 'COMPLETED') {
+          state.uiState = UI_STATES.COMPLETED;
+          state.pendingCommand = null;
+        } else if (backendState === 'CONFIGURED') {
+          // If we just sent start, stay in STARTING until backend confirms
+          if (wasStarting) {
+            // remain STARTING
+          } else {
+            state.uiState = UI_STATES.CONFIGURED;
+            state.pendingCommand = null;
+          }
+        } else {
+          if (wasStarting) {
+            // remain STARTING
+          } else if (wasStopping) {
+            state.uiState = UI_STATES.IDLE;
+            state.pendingCommand = null;
+          } else {
+            state.uiState = UI_STATES.IDLE;
+            state.pendingCommand = null;
+          }
+        }
+
+        // Sync data from server — but ONLY when therapy is active
+        // When IDLE/CONFIGURED, the dashboard is the authority (user is configuring).
+        // When RUNNING/PAUSED, the ESP32 status is the authority.
+        const isServerAuthority = (state.uiState === UI_STATES.RUNNING || state.uiState === UI_STATES.PAUSED);
+
+        if (isServerAuthority) {
+          // ESP32 is running — trust its reported values
+          state.tray = data.tray || state.tray;
+          state.wavelength = data.wavelength || state.wavelength;
+
+          // Sync remaining time from server
+          state.serverRemainingMs = data.remaining || 0;
+          state.remainingMs = state.serverRemainingMs;
+          state.serverTimestamp = Date.now();
+
+          // Total duration from server
+          const configMins = data.minutes || 0;
+          const configSecs = data.seconds || 0;
+          state.totalDurationMs = (configMins * 60 + configSecs) * 1000;
+        } else {
+          // User is configuring — do NOT overwrite their selections
+          // Only update connection-related data (remaining for completed state, etc.)
+          state.serverRemainingMs = data.remaining || 0;
+          state.remainingMs = state.serverRemainingMs;
+          state.serverTimestamp = Date.now();
+        }
+
+        // Sync tray UI (reads from state.tray which is correct in both cases)
+        syncTrayUI();
+
+        // Sync controls only when server is authority
+        if (isServerAuthority) {
+          el.wlSlider.value = state.wavelength;
+          renderWavelength();
+        }
+
+        renderAll();
+      })
+      .catch(() => {
+        handleOffline();
+      });
+  }
+
+  function handleOffline() {
+    state.consecutiveErrors++;
+    if (state.consecutiveErrors >= 3) {
+      state.isOnline = false;
+      // Only go offline if not in the middle of a pending command
+      if (!state.pendingCommand) {
+        state.uiState = UI_STATES.OFFLINE;
+      }
+      renderAll();
+    }
+  }
+
+  function pushConfig() {
+    const payload = {
+      tray: state.tray,
+      wavelength: state.wavelength,
+      minutes: state.minutes,
+      seconds: state.seconds
+    };
+
+    fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(() => {
+      // Silent — status poll will detect offline
+    });
+  }
+
+  function sendCommand(action) {
+    // Immediate feedback
+    if (action === 'start') {
+      state.uiState = UI_STATES.STARTING;
+      state.pendingCommand = 'start';
+    } else if (action === 'stop') {
+      state.uiState = UI_STATES.STOPPING;
+      state.pendingCommand = 'stop';
+    }
+    // Pause / Resume take effect via next poll
+    renderAll();
+
+    fetch('/api/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    })
+    .then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(() => {
+      // Poll immediately to get confirmation
+      setTimeout(fetchStatus, 300);
+    })
+    .catch(() => {
+      showToast('Command failed. Check connection.', true);
+      // Revert pending state
+      state.pendingCommand = null;
+      fetchStatus();
+    });
+  }
+
+  // ── User Interactions ──────────────────────────────────────
+  function selectTray(tray) {
+    if (isLocked()) return;
+    state.tray = tray;
+    syncTrayUI();
+    pushConfig();
+  }
+
+  function syncTrayUI() {
+    el.trayTop.classList.toggle('active', state.tray === 'top');
+    el.trayBottom.classList.toggle('active', state.tray === 'bottom');
+    el.trayBoth.classList.toggle('active', state.tray === 'both');
+
+    el.trayTop.setAttribute('aria-checked', state.tray === 'top');
+    el.trayBottom.setAttribute('aria-checked', state.tray === 'bottom');
+    el.trayBoth.setAttribute('aria-checked', state.tray === 'both');
+  }
+
+  function onWavelengthInput() {
+    // Local visual update only — no API call
+    state.wavelength = parseInt(el.wlSlider.value);
+    renderWavelength();
+  }
+
+  function onWavelengthChange() {
+    // User released slider — push to backend
+    state.wavelength = parseInt(el.wlSlider.value);
+    renderWavelength();
+    pushConfig();
+  }
+
+  let durationDebounce = null;
+
+  function onDurationChange() {
+    if (isLocked()) return;
+    // Debounce: wait 600ms after user stops typing before pushing to backend
+    clearTimeout(durationDebounce);
+    durationDebounce = setTimeout(() => {
+      commitDuration();
+    }, 600);
+  }
+
+  function commitDuration() {
+    state.minutes = Math.max(0, Math.min(999, parseInt(el.inputMinutes.value) || 0));
+    state.seconds = Math.max(0, Math.min(59, parseInt(el.inputSeconds.value) || 0));
+
+    el.inputMinutes.value = state.minutes;
+    el.inputSeconds.value = String(state.seconds).padStart(2, '0');
+
+    state.totalDurationMs = (state.minutes * 60 + state.seconds) * 1000;
+    pushConfig();
+  }
+
+  function stepMinutes(delta) {
+    if (isLocked()) return;
+    state.minutes = Math.max(0, Math.min(999, (parseInt(el.inputMinutes.value) || 0) + delta));
+    el.inputMinutes.value = state.minutes;
+    state.totalDurationMs = (state.minutes * 60 + state.seconds) * 1000;
+    pushConfig();
+  }
+
+  function stepSeconds(delta) {
+    if (isLocked()) return;
+    state.seconds = Math.max(0, Math.min(59, (parseInt(el.inputSeconds.value) || 0) + delta));
+    el.inputSeconds.value = String(state.seconds).padStart(2, '0');
+    state.totalDurationMs = (state.minutes * 60 + state.seconds) * 1000;
+    pushConfig();
+  }
+
+  function resetSession() {
+    state.uiState = UI_STATES.IDLE;
+    prevRenderedHeroState = null;
+    prevActionState = null;
+    prevTimerText = '';
+    renderAll();
+  }
+
+  function isLocked() {
+    return [UI_STATES.RUNNING, UI_STATES.PAUSED, UI_STATES.STARTING, UI_STATES.STOPPING].includes(state.uiState);
+  }
+
+  // ── Local Countdown Timer ─────────────────────────────────
+  function tickCountdown() {
+    if (state.uiState !== UI_STATES.RUNNING) return;
+
+    // Calculate remaining based on elapsed time since last server update
+    const elapsed = Date.now() - state.serverTimestamp;
+    state.remainingMs = Math.max(0, state.serverRemainingMs - elapsed);
+
+    renderTimer();
+  }
+
+  // ── Initialization ─────────────────────────────────────────
+  function init() {
+    cacheDom();
+    renderWavelength();
+    syncTrayUI();
+    renderAll();
+
+    // Initial fetch
+    fetchStatus();
+
+    // Poll backend every 2 seconds (reasonable + matches ESP32 cycle)
+    setInterval(fetchStatus, 2000);
+
+    // Local countdown — tick every second
+    setInterval(tickCountdown, 1000);
+
+    // Handle pending command timeout (10s)
+    setInterval(() => {
+      if (state.pendingCommand && state.uiState === UI_STATES.STARTING) {
+        // Check if we've been waiting too long
+        state.pendingCommand = null;
+        fetchStatus();
+      }
+    }, 10000);
+  }
+
+  // Wait for DOM
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // ── Public API ─────────────────────────────────────────────
+  return {
+    selectTray,
+    onWavelengthInput,
+    onWavelengthChange,
+    onDurationChange,
+    stepMinutes,
+    stepSeconds,
+    sendCommand,
+    resetSession,
+    fetchStatus,
+    hideToast,
+    showToast
+  };
+
+})();
+</script>
+
+</body>
+</html>
